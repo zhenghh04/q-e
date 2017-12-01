@@ -349,7 +349,7 @@ MODULE cp_restart
          !
          CALL qexml_write_cell( ibrav, celldm, alat, a1, a2, a3, b1, b2, b3, &
                           "Bohr","Bohr","2 pi / a", &
-                          do_makov_payne, .FALSE., .FALSE. )
+                          do_makov_payne, .FALSE., .FALSE., .FALSE. )
          !
 !-------------------------------------------------------------------------------
 ! ... IONS
@@ -754,6 +754,8 @@ MODULE cp_restart
                !
             END IF
             !
+            DEALLOCATE( mrepl )
+            !
          END DO
          !
          IF ( ionode ) &
@@ -886,6 +888,7 @@ MODULE cp_restart
       USE mp_global,                ONLY : root_bgrp, intra_bgrp_comm, inter_bgrp_comm, intra_pool_comm
       USE parameters,               ONLY : ntypx
       USE constants,                ONLY : eps8, angstrom_au, pi
+      USE mytime,                   ONLY : f_wall
       !
       IMPLICIT NONE
       !
@@ -1653,9 +1656,6 @@ MODULE cp_restart
       ! BS : Wannier centers
       IF ( lwf ) CALL mp_bcast( wfc, ionode_id, intra_image_comm )
       !-------------------------------------------------------------------------
-      !
-      IF ( PRESENT( mat_z ) ) &
-         CALL mp_bcast( mat_z(:,:,:), ionode_id, intra_image_comm )
       !
       IF ( ionode ) &
          CALL iotk_close_read( iunpun )

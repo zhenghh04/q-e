@@ -172,6 +172,8 @@ CONTAINS
          &/5X,"for quantum simulation of materials; please cite",   &
          &/9X,"""P. Giannozzi et al., J. Phys.:Condens. Matter 21 ",&
          &    "395502 (2009);", &
+         &/9X,"""P. Giannozzi et al., J. Phys.:Condens. Matter 29 ",&
+         &    "465901 (2017);", &
          &/9X," URL http://www.quantum-espresso.org"", ", &
          &/5X,"in publications or presentations arising from this work. More details at",&
          &/5x,"http://www.quantum-espresso.org/quote")' )
@@ -206,7 +208,7 @@ CONTAINS
   SUBROUTINE parallel_info ( code )
     !
     CHARACTER(LEN=*), INTENT(IN) :: code
-#if defined(__OPENMP)
+#if defined(_OPENMP)
     INTEGER, EXTERNAL :: omp_get_max_threads
     !
     WRITE( stdout, '(/5X,"Parallel version (MPI & OpenMP), running on ",&
@@ -221,8 +223,10 @@ CONTAINS
          &I5," processors")' ) nproc 
 #endif
     !
+#if !defined(__GFORTRAN__) ||  ((__GNUC__>4) || ((__GNUC__==4) && (__GNUC_MINOR__>=8)))
     WRITE( stdout, '(/5X,"MPI processes distributed on ",&
          &I5," nodes")' ) nnode
+#endif
     IF ( nimage > 1 ) WRITE( stdout, &
          '(5X,"path-images division:  nimage    = ",I7)' ) nimage
     IF ( npool > 1 ) WRITE( stdout, &
@@ -243,11 +247,11 @@ CONTAINS
   !==-----------------------------------------------------------------------==!
   SUBROUTINE serial_info ( )
     !
-#if defined(__OPENMP)
+#if defined(_OPENMP)
     INTEGER, EXTERNAL :: omp_get_max_threads
 #endif
     !
-#if defined(__OPENMP)
+#if defined(_OPENMP)
     WRITE( stdout, '(/5X,"Serial multi-threaded version, running on ",&
          &I4," processor cores")' ) omp_get_max_threads()
     !

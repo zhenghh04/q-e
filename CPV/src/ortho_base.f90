@@ -182,6 +182,7 @@ CONTAINS
 
    SUBROUTINE mesure_mmul_perf( n )
       !
+      USE mp_world,    ONLY: world_comm
       USE mp_bands,    ONLY: nproc_bgrp, me_bgrp, intra_bgrp_comm, &
                              root_bgrp, my_bgrp_id, nbgrp
       USE mp_images,   ONLY: nimage, my_image_id
@@ -209,7 +210,7 @@ CONTAINS
       !
       !  Now re-define the ortho group and test the performance
       !
-      CALL init_ortho_group( np * np, intra_bgrp_comm, nimage*nbgrp, my_bgrp_id + nbgrp * my_image_id )
+      CALL init_ortho_group( np * np, world_comm, intra_bgrp_comm, nimage*nbgrp, my_bgrp_id + nbgrp * my_image_id )
 
       CALL descla_init( desc, n, n, np_ortho, me_ortho, ortho_comm, ortho_cntx, ortho_comm_id )
 
@@ -803,22 +804,22 @@ CONTAINS
             !
             IF( MOD( root , nbgrp ) == my_bgrp_id ) THEN
 
-            root = root * leg_ortho
+               root = root * leg_ortho
 
-            IF( ngw > 0 ) THEN
-              CALL dgemm( 'T', 'N', nr, nc, 2*ngw, 2.0d0, phi( 1, ist + ir - 1 ), 2*ngwx, &
-                  cp( 1, ist + ic - 1 ), 2*ngwx, 0.0d0, rhop, nx )
-            ELSE
-              rhop = 0.0d0
-            END IF
-            !
-            !     q = 0  components has weight 1.0
-            !
-            IF (gstart == 2) THEN
-               CALL DGER( nr, nc, -1.D0, phi(1,ist+ir-1), 2*ngwx, cp(1,ist+ic-1), 2*ngwx, rhop, nx )
-            END IF
+               IF( ngw > 0 ) THEN
+                  CALL dgemm( 'T', 'N', nr, nc, 2*ngw, 2.0d0, phi( 1, ist + ir - 1 ), 2*ngwx, &
+                              cp( 1, ist + ic - 1 ), 2*ngwx, 0.0d0, rhop, nx )
+               ELSE
+                  rhop = 0.0d0
+               END IF
+               !
+               !     q = 0  components has weight 1.0
+               !
+               IF (gstart == 2) THEN
+                  CALL DGER( nr, nc, -1.D0, phi(1,ist+ir-1), 2*ngwx, cp(1,ist+ic-1), 2*ngwx, rhop, nx )
+               END IF
 
-            CALL mp_root_sum( rhop, rho, root, intra_bgrp_comm )
+               CALL mp_root_sum( rhop, rho, root, intra_bgrp_comm )
 
             END IF
 
@@ -1052,6 +1053,8 @@ CONTAINS
       INTEGER :: np( 2 ), coor_ip( 2 )
       TYPE(la_descriptor) :: desc_ip
 
+      CALL start_clock( 'updatc' )
+
       DO iss = 1, nspin
          !
          !  size of the local block
@@ -1078,7 +1081,6 @@ CONTAINS
          np(1) = desc( iss )%npr
          np(2) = desc( iss )%npc
          !
-         CALL start_clock( 'updatc' )
    
          ALLOCATE( xd( nrcx, nrcx ) )
    

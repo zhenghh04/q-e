@@ -144,7 +144,7 @@ MODULE qexsd_input
            smearing_local="gaussian"
        CASE ('methfessel-paxton', 'm-p', 'mp')
            smearing_local="mp"
-       CASE ( 'marzari-vanderbilt', 'cold', 'm-v', 'mv') 
+       CASE ( 'marzari-vanderbilt', 'cold', 'm-v', 'mv','Marzari-Vanderbilt') 
            smearing_local="mv"
        CASE ('fermi-dirac', 'f-d', 'fd') 
            smearing_local="fd"
@@ -292,7 +292,7 @@ MODULE qexsd_input
    CHARACTER(LEN=*),PARAMETER           :: TAGNAME="k_points_IBZ"
    TYPE(monkhorst_pack_type)            :: mpack_obj
    TYPE(k_point_type),ALLOCATABLE       :: kp_obj(:)
-   TYPE (k_point_type)                  :: dummy_kpobj(0)
+   TYPE (k_point_type)                  :: dummy_kpobj(1)
    LOGICAL                              :: mpack_ispresent,kp_ispresent
    CHARACTER(LEN=100)                   :: kind_of_grid
    INTEGER                              :: kdim,ik,jk,kcount
@@ -748,7 +748,7 @@ MODULE qexsd_input
             smearing_local="gaussian"
         CASE ('methfessel-paxton', 'm-p', 'mp')
             smearing_local="mp"
-        CASE ( 'marzari-vanderbilt', 'cold', 'm-v', 'mv') 
+        CASE ( 'marzari-vanderbilt', 'cold', 'm-v', 'mv', 'Marzari-Vanderbilt') 
             smearing_local="mv"
         CASE ('fermi-dirac', 'f-d', 'fd') 
             smearing_local="fd"

@@ -59,7 +59,6 @@ MODULE qexsd_module
   !
   LOGICAL          :: qexsd_use_large_indent = .FALSE.
   !
-  CHARACTER(iotk_attlenx) :: attr
   ! 
   TYPE (input_type)                :: qexsd_input_obj
   TYPE (general_info_type)         :: general_info
@@ -89,7 +88,8 @@ MODULE qexsd_module
             qexsd_init_symmetries, qexsd_init_basis_set, qexsd_init_dft, &
             qexsd_init_magnetization, qexsd_init_band_structure, & 
             qexsd_init_total_energy, qexsd_init_forces, qexsd_init_stress, &
-            qexsd_init_dipole_info, qexsd_init_outputElectricField
+            qexsd_init_dipole_info, qexsd_init_outputElectricField,   &
+            qexsd_init_outputPBC
   !
   PUBLIC :: qexsd_step_addstep, qexsd_set_status    
   ! 
@@ -173,17 +173,20 @@ CONTAINS
       CALL qes_write_parallel_info(qexsd_xf,parallel_info)
       CALL qes_reset_parallel_info(parallel_info) 
       IF ( check_file_exst(input_xml_schema_file) )  THEN
+         CALL xml_addComment( XF = qexsd_xf, &
+                              COMMENT= "")
          CALL qexsd_cp_line_by_line(ounit ,input_xml_schema_file, spec_tag="input")
       ELSE IF ( TRIM(qexsd_input_obj%tagname) == "input") THEN 
          CALL qes_write_input(qexsd_xf, qexsd_input_obj)
       END IF
       ! 
-      !CALL qes_reset_input(qexsd_input_obj)     
       IF (ALLOCATED(steps) ) THEN 
          len_steps= step_counter 
-         DO i_step = 1, len_steps
-            CALL qes_write_step(qexsd_xf, steps(i_step) )
-         END DO 
+         IF (TRIM (steps(1)%tagname ) .EQ. 'step') THEN
+            DO i_step = 1, len_steps
+               CALL qes_write_step(qexsd_xf, steps(i_step) )
+            END DO 
+         END IF
       END IF
       ! 
     END SUBROUTINE qexsd_openschema
@@ -232,7 +235,7 @@ CONTAINS
       TYPE ( parallel_info_type )           :: obj
       !
       INTEGER                               :: nthreads=1
-#ifdef  __OMP 
+#if defined(__OMP) 
       INTEGER,EXTERNAL                      :: omp_get_max
       !     
       nthreads = omp_get_max()
@@ -278,8 +281,9 @@ CONTAINS
       integer :: iun, ierr
       character(256) :: str
       logical :: icopy, exists
+      integer, external  :: find_free_unit
 
-      call iotk_free_unit(iun)
+      iun =  find_free_unit()
       !
       INQUIRE(FILE=trim(filename), EXIST=exists)
       !
@@ -623,6 +627,7 @@ CONTAINS
          Hubbard_beta, Hubbard_J, starting_ns, U_projection_type, is_hubbard, &
          psd,  Hubbard_ns, Hubbard_ns_nc )
       !------------------------------------------------------------------------
+      USE  constants,            ONLY:  eps16
       USE  parameters,           ONLY:  lqmax
       USE  input_parameters,     ONLY:  nspinx
       IMPLICIT NONE
@@ -869,19 +874,19 @@ CONTAINS
            london_s6_ispresent = .TRUE. 
            london_rcut_ispresent = .TRUE. 
            xdm_a1_ispresent = .TRUE. 
-           xdm_a2_ispresent = .TRUE. 
-           IF ( ANY(london_c6 .GT.  0.d0 )) THEN 
+           xdm_a2_ispresent = .TRUE.
+           IF ( ANY(london_c6 .GT.  -eps16 )) THEN ! -eps16 to allow london_c6(i) = 0.0 
               london_c6_ispresent = .TRUE.
               ndim_london_c6 = 0 
               DO isp = 1, nsp 
-                 IF ( london_c6(isp) .GT. 0.d0 ) THEN 
+                 IF ( london_c6(isp) .GT. -eps16 ) THEN 
                     ndim_london_c6 = ndim_london_c6 + 1
                  END IF 
               END DO
               ALLOCATE (london_c6_obj(ndim_london_c6))
               ndim_london_c6 = 0 
               DO isp = 1, nsp
-                 IF ( london_c6(isp) .GT. 0.d0) THEN
+                 IF ( london_c6(isp) .GT. -eps16 ) THEN
                     ndim_london_c6 = ndim_london_c6 + 1  
                     CALL qes_init_hubbardcommon(london_c6_obj(ndim_london_c6), "london_c6", TRIM(species(isp)),"",&
                                                 london_c6(isp))
@@ -939,6 +944,19 @@ CONTAINS
       IF (dft_is_vdW .OR. empirical_vdw )  CALL qes_reset_vdW(vdW)
       !
     END SUBROUTINE qexsd_init_dft
+    !
+    !--------------------------------------------------------------------------------------------
+    SUBROUTINE qexsd_init_outputPBC(obj,assume_isolated)
+    !--------------------------------------------------------------------------------------------
+    ! 
+    IMPLICIT NONE
+    ! 
+    TYPE (outputPBC_type)                       :: obj
+    CHARACTER(LEN=*),INTENT(IN)                  :: assume_isolated
+    CHARACTER(LEN=*),PARAMETER                   :: TAGNAME="boundary_conditions"
+    !
+    CALL qes_init_outputPBC(obj,TAGNAME,ASSUME_ISOLATED =assume_isolated)
+    END SUBROUTINE qexsd_init_outputPBC
     !
     !
     !---------------------------------------------------------------------------------------
@@ -1100,7 +1118,7 @@ CONTAINS
     LOGICAL                         :: demet_ispresent
     CHARACTER(LEN=*),PARAMETER      :: TAGNAME="total_energy"
     REAL(DP)                        :: etot_har,eband_har,vtxc_har,etxc_har,ewald_har,&
-                                       demet_har,ehart_har,efield_corr
+                                       demet_har,ehart_har,efield_corr, potst_contribution_har
 
     etot_har  = etot/e2
     eband_har = etot/e2
@@ -1113,6 +1131,11 @@ CONTAINS
     ELSE
        efield_corr=0.d0
     END IF
+    IF (PRESENT ( potentiostat_contr ) ) THEN
+       potst_contribution_har = potentiostat_contr/e2
+    ELSE 
+       potst_contribution_har = 0.d0
+    END IF 
 
     IF (degauss .GT. 0.D0) THEN 
        demet_ispresent=.TRUE.
@@ -1128,7 +1151,7 @@ CONTAINS
                                ewald=ewald_har, demet_ispresent=demet_ispresent,demet=demet_har, &
                                efieldcorr_ispresent=PRESENT(electric_field_corr), efieldcorr=efield_corr,&
                                POTENTIOSTAT_CONTR_ISPRESENT = PRESENT(potentiostat_contr), & 
-                               POTENTIOSTAT_CONTR = potentiostat_contr)
+                               POTENTIOSTAT_CONTR = potst_contribution_har)
 
     END SUBROUTINE qexsd_init_total_energy
     ! 
